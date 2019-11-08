@@ -15,7 +15,6 @@ class Config:
 		self.birdJump = -3
 		self.birdAcceleration = 0.07
 
-		self.pipeAmount = 5
 		self.pipeInterval = not self.fps and 120 or round(self.fps * 2) # Every pipeInterval there will be a new pipe created
 		self.pipeSpeed = 5
 		self.pipeGap = round(self.windowSize[1] * 0.25)
@@ -322,6 +321,6 @@ class Game:
 		pygame.quit()
 		quit()
 
-if(__name__ == "__main__"):
+if __name__ == "__main__":
 	config = Config()
 	game = Game(config)

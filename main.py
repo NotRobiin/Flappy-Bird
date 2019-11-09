@@ -20,8 +20,21 @@ class Config:
 		self.pipeGap = round(self.windowSize[1] * 0.25)
 		self.pipeScore = 1
 
-		self.fontType = "Arial"
-		self.fontSize = 22
+		self.scoreFontType = "Arial"
+		self.scoreFontSize = 22
+
+		self.menuFontType = "Arial"
+		self.menuFontSize = 65
+		self.menuTitle = "Flappy bird!"
+		self.menuButtons = [
+			["Start", 0.4],
+			["Options", 0.4]
+		]
+
+		self.menuAssets = {
+			"Start" : pygame.image.load(os.path.join("assets/menu", "start.png")),
+			"Options" : pygame.image.load(os.path.join("assets/menu", "options.png"))
+		}
 
 		self.birdAssets = {
 			"up" : pygame.image.load(os.path.join("assets/bird", "birdUp.png")),
@@ -39,7 +52,9 @@ class Config:
 
 		self.color = {
 			"background" : (140, 140, 140),
-			"score" : (255, 215, 0)
+			"score" : (255, 215, 0),
+			"menuTitle" : (30, 30, 30),
+			"menuBackground" : (200, 190, 100)
 		}
 
 class Bird:
@@ -206,6 +221,59 @@ class Pipe:
 	def isOffScreen(self):
 		return bool(self.x + round(self.width / 2) <= 0)
 
+class Menu:
+	def __init__(self, config):
+		self.config = config
+
+		self.setupVariables()
+		self.setupButtons()
+
+	def setupVariables(self):
+		self.title = self.config.menuTitle
+		self.titleColor = self.config.color["menuTitle"]
+
+		self.buttons = []
+
+		self.font = pygame.font.SysFont(self.config.menuFontType, self.config.menuFontSize)
+
+	def setupButtons(self):
+		titleOffset = round(self.config.windowSize[1] / 10)
+
+		for iterator, buttonData in enumerate(self.config.menuButtons):
+			image = self.config.menuAssets[buttonData[0]]
+			imageSize = image.get_rect().size
+			image = pygame.transform.scale(image, (round(imageSize[0] * buttonData[1]), round(imageSize[1] * buttonData[1])))
+			imageSize = image.get_rect().size
+
+			buttonOffset = round(imageSize[1] * 1.15)
+
+			x = int((self.config.windowSize[0] / 2) - round(imageSize[0] / 2))
+			y = int(titleOffset + (imageSize[1] * iterator) + buttonOffset)
+
+			self.buttons.append({
+				"label" : buttonData[0],
+				"x" : x,
+				"y" : y,
+				"image" : image
+			})
+
+	def drawBackground(self, surface):
+		surface.fill(self.config.color["menuBackground"])
+
+	def drawButtons(self, surface):
+		for button in self.buttons:
+			surface.blit(button["image"], (button["x"], button["y"]))
+
+	def drawTitle(self, surface):
+		text = self.font.render(self.title, True, self.titleColor)
+
+		surface.blit(text, (round(self.config.windowSize[0] / 2) - round(text.get_width() / 2), text.get_height()))
+
+	def draw(self, surface):
+		self.drawBackground(surface)
+		self.drawTitle(surface)
+		self.drawButtons(surface)
+
 class Game:
 	def __init__(self, config):
 		self.config = config
@@ -219,6 +287,9 @@ class Game:
 		pygame.init()
 
 	def setupVariables(self):
+		self.menu = Menu(self.config)
+		self.inMenu = True
+
 		self.window = pygame.display.set_mode(self.config.windowSize)
 		pygame.display.set_caption(self.config.windowTitle)
 
@@ -242,7 +313,7 @@ class Game:
 		self.window.fill(self.config.color["background"])
 
 	def drawScore(self):
-		font = pygame.font.SysFont(self.config.fontType, self.config.fontSize)
+		font = pygame.font.SysFont(self.config.scoreFontType, self.config.scoreFontSize)
 		text = font.render(f"Score: {self.score}", True, self.config.color["score"])
 
 		self.window.blit(text, (0, 0))
@@ -250,16 +321,20 @@ class Game:
 	def draw(self):
 		self.clock.tick(self.config.fps)
 
-		self.drawBackground()
+		if self.inMenu:
+			self.menu.draw(self.window)
+			
+		else:
+			self.drawBackground()
 
-		self.bird.draw(self.window)
+			self.bird.draw(self.window)
 
-		for pipe in self.pipes:
-			pipe.draw(self.window)
+			for pipe in self.pipes:
+				pipe.draw(self.window)
 
-		self.floor.draw(self.window)
+			self.floor.draw(self.window)
 
-		self.drawScore()
+			self.drawScore()
 
 	# --- Draw
 
@@ -302,8 +377,8 @@ class Game:
 			self.addPipe()
 
 		self.handlePipes()
-		self.floor.update()
 
+		self.floor.update()
 
 	def gameLoop(self):
 		while self.running:

@@ -78,12 +78,12 @@ class Bird:
 		self.image = self.config.birdAssets[list(self.config.birdAssets.keys())[self.state]]
 		self.imageSize = self.image.get_rect().size
 
-	def update(self):
+	def update(self, game):
 		if not self.alive:
 			return
 
 		if self.falling:
-			self.fallToDeath()
+			self.fallToDeath(game)
 		
 		else:
 			self.velocity += self.config.birdAcceleration
@@ -92,9 +92,9 @@ class Bird:
 	def draw(self, surface):
 		surface.blit(self.alive and self.image or pygame.transform.rotate(self.image, 180), (int(self.x), int(self.y)))
 
-	def collide(self, pipes):
+	def collide(self, pipes, game):
 		if self.y >= self.config.floorHeight - self.imageSize[1]:
-			self.die()
+			self.die(game)
 
 			return True
 
@@ -107,25 +107,27 @@ class Bird:
 			if (self.y + self.imageSize[1]) >= pipe.gapRange[0] and (self.y + self.imageSize[1]) <= pipe.gapRange[1]:
 				continue
 
-			pipe.touch(self)
+			pipe.touch(self, game)
 
 			return True
 
 		return False
 
-	def fallToDeath(self):
+	def fallToDeath(self, game):
 		if not self.fallSpeed:
 			return
 
 		self.y += self.fallSpeed
 
 		if self.y >= self.config.floorHeight - self.imageSize[1]:
-			self.die()
+			self.die(game)
 
-	def die(self):
+	def die(self, game):
 		self.y = self.config.floorHeight - self.imageSize[1]
 		self.alive = False
 		self.velocity = 0
+
+		game.goToMenu()
 
 	def jump(self):
 		if not self.alive:
@@ -209,14 +211,14 @@ class Pipe:
 	def update(self):
 		self.x -= self.config.pipeSpeed
 
-	def touch(self, bird):
+	def touch(self, bird, game):
 		self.image = self.config.pipeAssets["red"]
 		self.top = self.image
 		self.bottom = pygame.transform.rotate(self.image, 180)
 
 		bird.falling = True
 		bird.fallSpeed = round((self.config.floorHeight - bird.y) / 40)
-		bird.fallToDeath()
+		bird.fallToDeath(game)
 
 	def isOffScreen(self):
 		return bool(self.x + round(self.width / 2) <= 0)
@@ -227,6 +229,17 @@ class Menu:
 
 		self.setupVariables()
 		self.setupButtons()
+
+	def handleButtons(self, mousePosition, game):
+		for button in self.buttons:
+			if mousePosition[0] >= button["imageRange"][0][0] and mousePosition[1] >= button["imageRange"][0][1] and mousePosition[0] < button["imageRange"][1][0] and mousePosition[1] < button["imageRange"][1][1]:
+				self.buttonClicked(button, game)
+
+				break
+
+	def buttonClicked(self, button, game):
+		if button["label"] == "Start":
+			game.start()
 
 	def setupVariables(self):
 		self.title = self.config.menuTitle
@@ -247,14 +260,15 @@ class Menu:
 
 			buttonOffset = round(imageSize[1] * 1.15)
 
-			x = int((self.config.windowSize[0] / 2) - round(imageSize[0] / 2))
-			y = int(titleOffset + (imageSize[1] * iterator) + buttonOffset)
+			x = (self.config.windowSize[0] / 2) - round(imageSize[0] / 2)
+			y = titleOffset + (imageSize[1] * iterator) + buttonOffset
 
 			self.buttons.append({
 				"label" : buttonData[0],
 				"x" : x,
 				"y" : y,
-				"image" : image
+				"image" : image,
+				"imageRange" : ((x, y), (x + imageSize[0], y + imageSize[1]))
 			})
 
 	def drawBackground(self, surface):
@@ -289,21 +303,13 @@ class Game:
 	def setupVariables(self):
 		self.menu = Menu(self.config)
 		self.inMenu = True
+		self.goToMenu()
 
 		self.window = pygame.display.set_mode(self.config.windowSize)
 		pygame.display.set_caption(self.config.windowTitle)
 
 		self.running = True
 		self.clock = pygame.time.Clock()
-		self.frameCount = self.config.pipeInterval - 1
-		self.score = 0
-
-		self.bird = Bird(self.config)
-		self.floor = Floor(self.config)
-		self.pipes = []
-
-		self.bird.x = round(self.config.windowSize[0] / 7)
-		self.bird.y = round(self.config.windowSize[1] / 2)
 
 	# --- Setup
 
@@ -338,6 +344,23 @@ class Game:
 
 	# --- Draw
 
+	def goToMenu(self):
+		self.inMenu = True
+
+	def start(self):
+		self.inMenu = False
+
+		self.frameCount = self.config.pipeInterval - 1
+		self.score = 0
+
+		self.bird = Bird(self.config)
+		self.floor = Floor(self.config)
+		self.pipes = []
+
+		self.bird.x = round(self.config.windowSize[0] / 7)
+		self.bird.y = round(self.config.windowSize[1] / 2)
+
+
 	def addPipe(self):
 		self.pipes.append(Pipe(self.config))
 
@@ -360,15 +383,19 @@ class Game:
 			self.quit()
 
 		if event.type == pygame.MOUSEBUTTONDOWN:
-			self.bird.jump()
+			if self.inMenu:
+				self.menu.handleButtons(event.pos, self)
+
+			else:
+				self.bird.jump()
 
 	def updateScore(self, score):
 		self.score += score
 
 	def update(self):
-		self.bird.update()
+		self.bird.update(self)
 
-		if self.bird.alive and self.bird.collide(self.pipes):
+		if self.bird.alive and self.bird.collide(self.pipes, self):
 			pass
 
 		self.frameCount += 1
@@ -385,7 +412,9 @@ class Game:
 			for event in pygame.event.get():
 				self.handleEvent(event)
 
-			self.update()
+			if not self.inMenu:
+				self.update()
+
 			self.draw()
 
 			pygame.display.update()

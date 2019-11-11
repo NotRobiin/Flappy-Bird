@@ -23,17 +23,17 @@ class Config:
 		self.scoreFontType = "Arial"
 		self.scoreFontSize = 22
 
-		self.menuFontType = "Arial"
-		self.menuFontSize = 65
+		self.menuFontType = "Cambria"
+		self.menuFontSize = 80
 		self.menuTitle = "Flappy bird!"
 		self.menuButtons = [
-			["Start", 0.4],
-			["Options", 0.4]
+			["Start", 0.7]
+			#["Options", 0.4]
 		]
 
 		self.menuAssets = {
-			"Start" : pygame.image.load(os.path.join("assets/menu", "start.png")),
-			"Options" : pygame.image.load(os.path.join("assets/menu", "options.png"))
+			"Start" : pygame.image.load(os.path.join("assets/menu", "start.png"))
+			#"Options" : pygame.image.load(os.path.join("assets/menu", "options.png"))
 		}
 
 		self.birdAssets = {
@@ -73,7 +73,7 @@ class Bird:
 		self.setup()
 
 	def setup(self):
-		self.state = 1
+		self.state = 0
 		self.alive = True
 		self.image = self.config.birdAssets[list(self.config.birdAssets.keys())[self.state]]
 		self.imageSize = self.image.get_rect().size
@@ -82,8 +82,11 @@ class Bird:
 		if not self.alive:
 			return
 
+		if self.y >= self.config.floorHeight - self.imageSize[1]:
+			self.die()
+
 		if self.falling:
-			self.fallToDeath(game)
+			self.fallToDeath()
 		
 		else:
 			self.velocity += self.config.birdAcceleration
@@ -92,9 +95,12 @@ class Bird:
 	def draw(self, surface):
 		surface.blit(self.alive and self.image or pygame.transform.rotate(self.image, 180), (int(self.x), int(self.y)))
 
-	def collide(self, pipes, game):
+	def collide(self, pipes):
+		if not self.alive:
+			return False
+
 		if self.y >= self.config.floorHeight - self.imageSize[1]:
-			self.die(game)
+			self.die()
 
 			return True
 
@@ -107,33 +113,31 @@ class Bird:
 			if (self.y + self.imageSize[1]) >= pipe.gapRange[0] and (self.y + self.imageSize[1]) <= pipe.gapRange[1]:
 				continue
 
-			pipe.touch(self, game)
+			pipe.touch(self)
 
 			return True
 
 		return False
 
-	def fallToDeath(self, game):
+	def fallToDeath(self):
 		if not self.fallSpeed:
 			return
 
 		self.y += self.fallSpeed
 
-		if self.y >= self.config.floorHeight - self.imageSize[1]:
-			self.die(game)
-
-	def die(self, game):
+	def die(self):
 		self.y = self.config.floorHeight - self.imageSize[1]
 		self.alive = False
 		self.velocity = 0
 
-		game.goToMenu()
-
 	def jump(self):
 		if not self.alive:
 			return
-
+		
 		self.velocity = self.config.birdJump
+
+		if self.y + self.velocity <= self.imageSize[1]:
+			self.velocity = 0
 
 class Floor:
 	def __init__(self, config):
@@ -211,14 +215,14 @@ class Pipe:
 	def update(self):
 		self.x -= self.config.pipeSpeed
 
-	def touch(self, bird, game):
+	def touch(self, bird):
 		self.image = self.config.pipeAssets["red"]
 		self.top = self.image
 		self.bottom = pygame.transform.rotate(self.image, 180)
 
 		bird.falling = True
 		bird.fallSpeed = round((self.config.floorHeight - bird.y) / 40)
-		bird.fallToDeath(game)
+		bird.fallToDeath()
 
 	def isOffScreen(self):
 		return bool(self.x + round(self.width / 2) <= 0)
@@ -243,14 +247,11 @@ class Menu:
 
 	def setupVariables(self):
 		self.title = self.config.menuTitle
-		self.titleColor = self.config.color["menuTitle"]
 
 		self.buttons = []
 
-		self.font = pygame.font.SysFont(self.config.menuFontType, self.config.menuFontSize)
-
 	def setupButtons(self):
-		titleOffset = round(self.config.windowSize[1] / 10)
+		titleOffset = round(self.config.windowSize[1] / 3)
 
 		for iterator, buttonData in enumerate(self.config.menuButtons):
 			image = self.config.menuAssets[buttonData[0]]
@@ -258,10 +259,8 @@ class Menu:
 			image = pygame.transform.scale(image, (round(imageSize[0] * buttonData[1]), round(imageSize[1] * buttonData[1])))
 			imageSize = image.get_rect().size
 
-			buttonOffset = round(imageSize[1] * 1.15)
-
 			x = (self.config.windowSize[0] / 2) - round(imageSize[0] / 2)
-			y = titleOffset + (imageSize[1] * iterator) + buttonOffset
+			y = titleOffset + (imageSize[1] * iterator)
 
 			self.buttons.append({
 				"label" : buttonData[0],
@@ -279,7 +278,8 @@ class Menu:
 			surface.blit(button["image"], (button["x"], button["y"]))
 
 	def drawTitle(self, surface):
-		text = self.font.render(self.title, True, self.titleColor)
+		font = pygame.font.SysFont(self.config.menuFontType, self.config.menuFontSize)
+		text = font.render(self.title, True, self.config.color["menuTitle"])
 
 		surface.blit(text, (round(self.config.windowSize[0] / 2) - round(text.get_width() / 2), text.get_height()))
 
@@ -287,6 +287,17 @@ class Menu:
 		self.drawBackground(surface)
 		self.drawTitle(surface)
 		self.drawButtons(surface)
+
+class Score:
+	def __init__(self, config):
+		self.config = config
+		self.score = 0
+
+	def draw(self, surface):
+		font = pygame.font.SysFont(self.config.scoreFontType, self.config.scoreFontSize)
+		text = font.render(f"Score: {self.score}", True, self.config.color["score"])
+
+		surface.blit(text, (0, 0))
 
 class Game:
 	def __init__(self, config):
@@ -296,13 +307,12 @@ class Game:
 		self.setupVariables()
 		self.gameLoop()
 
-	# --- Setup
 	def setupPygame(self):
 		pygame.init()
 
 	def setupVariables(self):
-		self.menu = Menu(self.config)
 		self.inMenu = True
+		self.menu = Menu(self.config)
 		self.goToMenu()
 
 		self.window = pygame.display.set_mode(self.config.windowSize)
@@ -311,27 +321,12 @@ class Game:
 		self.running = True
 		self.clock = pygame.time.Clock()
 
-	# --- Setup
-
-	# --- Draw
-
-	def drawBackground(self):
-		self.window.fill(self.config.color["background"])
-
-	def drawScore(self):
-		font = pygame.font.SysFont(self.config.scoreFontType, self.config.scoreFontSize)
-		text = font.render(f"Score: {self.score}", True, self.config.color["score"])
-
-		self.window.blit(text, (0, 0))
-
 	def draw(self):
-		self.clock.tick(self.config.fps)
-
 		if self.inMenu:
 			self.menu.draw(self.window)
 			
 		else:
-			self.drawBackground()
+			self.window.fill(self.config.color["background"])
 
 			self.bird.draw(self.window)
 
@@ -340,9 +335,7 @@ class Game:
 
 			self.floor.draw(self.window)
 
-			self.drawScore()
-
-	# --- Draw
+			self.score.draw(self.window)
 
 	def goToMenu(self):
 		self.inMenu = True
@@ -351,8 +344,8 @@ class Game:
 		self.inMenu = False
 
 		self.frameCount = self.config.pipeInterval - 1
-		self.score = 0
 
+		self.score = Score(self.config)
 		self.bird = Bird(self.config)
 		self.floor = Floor(self.config)
 		self.pipes = []
@@ -374,7 +367,7 @@ class Game:
 			if self.bird.x >= pipe.x and not pipe.passed:
 				pipe.passed = True
 
-				self.updateScore(self.config.pipeScore)
+				self.updateScore()
 
 			pipe.update()
 
@@ -389,13 +382,16 @@ class Game:
 			else:
 				self.bird.jump()
 
-	def updateScore(self, score):
-		self.score += score
+	def updateScore(self):
+		self.score.score += self.config.pipeScore
 
 	def update(self):
+		if not self.bird.alive:
+			self.inMenu = True
+
 		self.bird.update(self)
 
-		if self.bird.alive and self.bird.collide(self.pipes, self):
+		if self.bird.collide(self.pipes):
 			pass
 
 		self.frameCount += 1
@@ -409,6 +405,8 @@ class Game:
 
 	def gameLoop(self):
 		while self.running:
+			self.clock.tick(self.config.fps)
+
 			for event in pygame.event.get():
 				self.handleEvent(event)
 

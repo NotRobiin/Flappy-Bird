@@ -110,7 +110,7 @@ class Bird:
 				continue
 
 			# Narrow y-axis
-			if (self.y + self.imageSize[1]) >= pipe.gapRange[0] and (self.y + self.imageSize[1]) <= pipe.gapRange[1]:
+			if self.y >= pipe.gapRange[0] and (self.y + self.imageSize[1]) <= pipe.gapRange[1]:
 				continue
 
 			pipe.touch(self)
@@ -120,8 +120,10 @@ class Bird:
 		return False
 
 	def fallToDeath(self):
-		if not self.fallSpeed:
-			return
+		if not self.falling:
+			self.falling = True
+
+		self.fallSpeed = round((self.config.floorHeight - self.y) / 40)
 
 		self.y += self.fallSpeed
 
@@ -150,13 +152,12 @@ class Floor:
 	def setup(self):
 		size = self.config.floorAssets["floor"].get_rect().size
 
-		# literally have no fucking idea how this works, but it works so imma leave it like that
 		for iterator in range(round(self.config.windowSize[0] / size[0]) * 2):
 			self.position.append((size[0] * iterator, self.config.floorHeight))
 
 	def draw(self, surface):
-		for element in self.position:
-			surface.blit(self.config.floorAssets["floor"], (element[0] - self.x, element[1]))
+		for position in self.position:
+			surface.blit(self.config.floorAssets["floor"], (position[0] - self.x, position[1]))
 
 	def update(self):
 		self.x += self.config.floorSpeed
@@ -174,7 +175,6 @@ class Pipe:
 		self.gapRange = (0, 0)
 		self.passed = False
 		self.image = None
-		self.top = None
 		self.bottom = None
 
 		self.setup()
@@ -200,14 +200,13 @@ class Pipe:
 	
 		self.image = self.getImage()
 
-		self.top = self.image
 		self.bottom = pygame.transform.rotate(self.image, 180)
 
 	def draw(self, surface):
 		imageSize = self.image.get_rect().size
 
 		# Lower pipe
-		surface.blit(self.top, (self.x, self.gapRange[1]))
+		surface.blit(self.image, (self.x, self.gapRange[1]))
 		
 		# Upper pipe
 		surface.blit(self.bottom, (self.x, self.gapRange[0] - imageSize[1]))
@@ -217,11 +216,8 @@ class Pipe:
 
 	def touch(self, bird):
 		self.image = self.config.pipeAssets["red"]
-		self.top = self.image
 		self.bottom = pygame.transform.rotate(self.image, 180)
 
-		bird.falling = True
-		bird.fallSpeed = round((self.config.floorHeight - bird.y) / 40)
 		bird.fallToDeath()
 
 	def isOffScreen(self):
@@ -273,15 +269,15 @@ class Menu:
 	def drawBackground(self, surface):
 		surface.fill(self.config.color["menuBackground"])
 
-	def drawButtons(self, surface):
-		for button in self.buttons:
-			surface.blit(button["image"], (button["x"], button["y"]))
-
 	def drawTitle(self, surface):
 		font = pygame.font.SysFont(self.config.menuFontType, self.config.menuFontSize)
 		text = font.render(self.title, True, self.config.color["menuTitle"])
 
 		surface.blit(text, (round(self.config.windowSize[0] / 2) - round(text.get_width() / 2), text.get_height()))
+
+	def drawButtons(self, surface):
+		for button in self.buttons:
+			surface.blit(button["image"], (button["x"], button["y"]))
 
 	def draw(self, surface):
 		self.drawBackground(surface)
@@ -318,7 +314,6 @@ class Game:
 		self.window = pygame.display.set_mode(self.config.windowSize)
 		pygame.display.set_caption(self.config.windowTitle)
 
-		self.running = True
 		self.clock = pygame.time.Clock()
 
 	def draw(self):
@@ -404,7 +399,7 @@ class Game:
 		self.floor.update()
 
 	def gameLoop(self):
-		while self.running:
+		while True:
 			self.clock.tick(self.config.fps)
 
 			for event in pygame.event.get():
@@ -418,8 +413,6 @@ class Game:
 			pygame.display.update()
 
 	def quit(self):
-		self.running = False
-
 		pygame.quit()
 		quit()
 

@@ -298,23 +298,41 @@ class Score:
 
 		surface.blit(text, (0, 0))
 
-	def updateHighscore(self, score, time):
+	def addHighscore(self, score, time):
 		self.highscore.append([score, time])
 
-		for iterator in range(len(self.highscore) - 1):
-			if self.highscore[iterator][0] > self.highscore[iterator + 1][0]:
-				temporary = self.highscore[iterator]
+		self.updateHighscore()
 
-				self.highscore[iterator] = self.highscore[iterator]
-				self.highscore[iterator + 1] = temporary
+	def updateHighscore(self):
+		if len(self.highscore) <= 1:
+			return
+
+		sortCount = 0
+
+		for iterator in range(len(self.highscore)):
+			if sortCount >= len(self.highscore):
+				break
+
+			if iterator == len(self.highscore) - 1:
+				iterator = 0
+
+			if self.highscore[iterator][0] > self.highscore[iterator + 1][0]:
+				self.highscore[iterator], self.highscore[iterator + 1] = self.highscore[iterator + 1], self.highscore[iterator]
+				
+				sortCount = 0
+
+			else:
+				sortCount += 1
+
+			iterator += 1
 
 		if len(self.highscore) > self.config.highscoreLimit:
 			self.highscore = self.highscore[: self.config.highscoreLimit]
 
 	def printHighscore(self):
-		for scoreData in self.highscore:
+		for iterator, scoreData in enumerate(self.highscore):
 			formatedTime = time.ctime(int(scoreData[1]))
-			print(f"Score {scoreData[0]} at {formatedTime}")
+			print(f"{iterator + 1}. Score {scoreData[0]} at {formatedTime}")
 
 class Game:
 	def __init__(self, config):
@@ -336,7 +354,7 @@ class Game:
 		pygame.display.set_caption(self.config.windowTitle)
 
 		self.clock = pygame.time.Clock()
-		self.highscores = []
+		self.score = Score(self.config)
 
 	def draw(self):
 		if self.inMenu:
@@ -362,7 +380,6 @@ class Game:
 
 		self.frameCount = self.config.pipeInterval - 1
 
-		self.score = Score(self.config)
 		self.bird = Bird(self.config)
 		self.floor = Floor(self.config)
 		self.pipes = []
@@ -403,7 +420,7 @@ class Game:
 
 	def update(self):
 		if not self.bird.alive:
-			self.score.updateHighscore(self.score.score, time.time())
+			self.score.addHighscore(self.score.score, time.time())
 			self.score.printHighscore()
 
 			self.inMenu = True

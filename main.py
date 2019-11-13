@@ -1,6 +1,7 @@
 import pygame
 import random
 import os
+import time
 
 class Config:
 	def __init__(self):
@@ -22,6 +23,7 @@ class Config:
 
 		self.scoreFontType = "Arial"
 		self.scoreFontSize = 22
+		self.highscoreLimit = 10
 
 		self.menuFontType = "Cambria"
 		self.menuFontSize = 80
@@ -288,12 +290,31 @@ class Score:
 	def __init__(self, config):
 		self.config = config
 		self.score = 0
+		self.highscore = []
 
 	def draw(self, surface):
 		font = pygame.font.SysFont(self.config.scoreFontType, self.config.scoreFontSize)
 		text = font.render(f"Score: {self.score}", True, self.config.color["score"])
 
 		surface.blit(text, (0, 0))
+
+	def updateHighscore(self, score, time):
+		self.highscore.append([score, time])
+
+		for iterator in range(len(self.highscore) - 1):
+			if self.highscore[iterator][0] > self.highscore[iterator + 1][0]:
+				temporary = self.highscore[iterator]
+
+				self.highscore[iterator] = self.highscore[iterator]
+				self.highscore[iterator + 1] = temporary
+
+		if len(self.highscore) > self.config.highscoreLimit:
+			self.highscore = self.highscore[: self.config.highscoreLimit]
+
+	def printHighscore(self):
+		for scoreData in self.highscore:
+			formatedTime = time.ctime(int(scoreData[1]))
+			print(f"Score {scoreData[0]} at {formatedTime}")
 
 class Game:
 	def __init__(self, config):
@@ -315,6 +336,7 @@ class Game:
 		pygame.display.set_caption(self.config.windowTitle)
 
 		self.clock = pygame.time.Clock()
+		self.highscores = []
 
 	def draw(self):
 		if self.inMenu:
@@ -348,7 +370,6 @@ class Game:
 		self.bird.x = round(self.config.windowSize[0] / 7)
 		self.bird.y = round(self.config.windowSize[1] / 2)
 
-
 	def addPipe(self):
 		self.pipes.append(Pipe(self.config))
 
@@ -359,7 +380,7 @@ class Game:
 
 				continue
 			
-			if self.bird.x >= pipe.x and not pipe.passed:
+			if self.bird.x >= pipe.x and not pipe.passed and not self.bird.falling:
 				pipe.passed = True
 
 				self.updateScore()
@@ -382,6 +403,9 @@ class Game:
 
 	def update(self):
 		if not self.bird.alive:
+			self.score.updateHighscore(self.score.score, time.time())
+			self.score.printHighscore()
+
 			self.inMenu = True
 
 		self.bird.update(self)
